@@ -2,7 +2,9 @@
 A collection of SQL scripts focusing on relational database design, data manipulation queries, and table architectures.
 # SQL Database Architecture & Querying Portfolio
 
-Welcome to my SQL data portfolio. This repository showcases my ability to design relational database schemas, write structured data definition language (DDL) scripts, and write data manipulation queries (DML) across different industry domains using DBeaver.
+Welcome to my SQL data portfolio. This repository showcases my foundational work in Structured Query Language (SQL). I am currently focused on building my proficiency in relational database design and basic query execution using DBeaver. 
+
+These projects represent my ongoing learning process as I work through tutorials to understand how to create database structures and retrieve information from them.
 
 ---
 
