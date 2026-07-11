@@ -178,6 +178,57 @@ step_count,
 SUM(step_count) OVER(ORDER BY log_date) AS cumulative_steps
 FROM analytics_sandbox.daily_metrics;
 
+SELECT 
+log_date,
+active_calories_burned,
+AVG(active_calories_burned) OVER() AS overall_avg_burn,
+active_calories_burned - AVG(active_calories_burned) OVER() AS variance
+FROM analytics_sandbox.daily_metrics;
+
+SELECT 
+log_date,
+workout_completed,
+active_calories_burned,
+AVG(active_calories_burned) OVER(PARTITION BY workout_completed) AS group_avg_burn 
+FROM analytics_sandbox.daily_metrics;
+
+SELECT 
+log_date,
+step_count,
+SUM(step_count) OVER (ORDER BY log_date) AS rolling_total_steps
+FROM analytics_sandbox.daily_metrics;
+
+SELECT 
+log_date,
+step_count,
+workout_completed,
+SUM(step_count) OVER(PARTITION BY workout_completed ORDER BY log_date)
+FROM analytics_sandbox.daily_metrics;
 
 
+SELECT 
+log_date,
+active_calories_burned,
+MAX(active_calories_burned) OVER() AS max_cals_burned
+FROM analytics_sandbox.daily_metrics;
 
+-- rank (leaves gaps in ranking)
+SELECT 
+log_date,
+active_calories_burned,
+RANK() OVER(ORDER BY avtive_calories_burned DESC) AS calorie_rank
+FROM analytics_sandbox.daily_metrics;
+
+-- dense style (no gaps in ranking)
+SELECT 
+log_date,
+active_calories_burned,
+DENSE RANK() OVER(ORDER BY active_calories_burned DESC) AS calorie_dense_rank
+FROM analytics_sandbox.daily_metrics;
+
+SELECT 
+log_date,
+active_calories_burned,
+workout_completed,
+DENSE_RANK() OVER(PARTITION BY workout_completed ORDER BY log_date)
+FROM analytics_sandbox.daily_metrics;
