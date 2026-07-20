@@ -232,3 +232,330 @@ active_calories_burned,
 workout_completed,
 DENSE_RANK() OVER(PARTITION BY workout_completed ORDER BY log_date)
 FROM analytics_sandbox.daily_metrics;
+
+-- 1. the nested box approach 
+SELECT log_date,active_calories_burned
+FROM ( 
+     -- Inner Query: generates the leaderboard first
+     SELECT log_date,active_calories_burned,
+            DENSE_RANK() OVER(ORDER BY active_calories_burned DESC) AS calorie_rank
+     FROM analytics_sandbox.daily_metrics
+) AS ranked_table -- need to give the inner box a nickname. 
+WHERE calorie_rank = 1; 
+
+
+-- 2. first creates the leaderboard which is also the same as the nested query in 1.(This is a neater method as compared to 1)
+WITH ranked_metrics_cte AS (
+SELECT log_date, active_calories_burned,
+DENSE_RANK() OVER(ORDER BY active_calories_burned DESC) AS calorie_rank
+FROM analytics_sandbox.daily_metrics
+)
+
+-- 3. use the above (2) as a table 
+SELECT log_date, active_calories_burned
+FROM ranked_metrics_cte
+WHERE calorie_rank =1;
+
+-- A) define the leaderboard for use in B
+WITH workout_streaks AS (
+SELECT 
+log_date, 
+active_calories_burned, 
+workout_completed,
+DENSE_RANK() OVER(PARTITION BY workout_completed ORDER BY log_date) AS day_streak_number
+FROM analytics_sandbox.daily_metrics
+)
+
+-- B) use A to filter out results
+SELECT log_date, workout_completed, day_streak_number
+FROM workout_streaks
+WHERE day_streak_number = 1;
+
+
+-- A: to build multi-chain CTE, step 1, filter down to intense days
+WITH high_intensity_days AS (
+SELECT log_date, workout_completed, active_calories_burned
+FROM analytics_sandbox.daily_metrics
+WHERE active_calories_burned >= 400
+),
+
+-- B: step 2, rank only those intense days (querying from A)
+ranked_days AS (
+SELECT 
+log_date,
+workout_completed,
+active_calories_burned,
+ROW_NUMBER() OVER(ORDER BY active_calories_burned DESC) AS performance_rank
+FROM high_intensity_days
+)
+
+-- C: step 3, output the final leaderboard
+SELECT performance_rank, log_date, workout_completed,active_calories_burned
+FROM ranked_days
+WHERE performance_rank <= 3;
+
+WITH high_step_days AS (
+SELECT log_date, workout_completed, step_count
+FROM analytics_sandbox.daily_metrics
+WHERE step_count >= 12000
+),
+
+ranked_steps AS (
+SELECT
+log_date,
+workout_completed,
+step_count,
+ROW_NUMBER() OVER(ORDER BY step_count DESC) AS step_rank
+FROM high_step_days 
+)
+
+SELECT step_rank, log_date, workout_completed
+FROM ranked_steps
+WHERE step_rank = 1;
+
+
+CREATE TABLE workout_details(
+workout_name VARCHAR(40)PRIMARY KEY,
+trainer_name VARCHAR(40),
+equipment_needed VARCHAR(40)
+);
+
+INSERT INTO workout_details VALUES ('Strength Training','Coach Alex','Barbell');
+INSERT INTO workout_details VALUES ('Running','Coach Sarah','None');
+
+SELECT
+m.log_date,
+m.workout_completed,
+m.active_calories_burned,
+d.trainer_name,
+d.workout_name
+FROM analytics_sandbox.daily_metrics AS m
+LEFT JOIN workout_details AS d
+ON m.workout_completed = d.workout_name;
+
+SELECT 
+d.trainer_name,
+COUNT(m.log_date) AS total_sessions_coached,
+AVG(m.active_calories_burned) AS avg_cal_burned
+FROM analytics_sandbox.daily_metrics AS m
+INNER JOIN workout_details AS d
+ON m.workout_completed = d.workout_name
+GROUP BY d.trainer_name; 
+
+SELECT 
+m.log_date,
+m.workout_completed,
+d.equipment_needed
+FROM analytics_sandbox.daily_metrics AS m
+INNER JOIN workout_details AS d
+ON m.workout_completed = d.workout_name; 
+
+
+SELECT 
+log_date,
+active_calories_burned,
+CASE WHEN active_calories_burned >= 400 THEN 'High Intensity'
+     WHEN active_calories_burned <= 250 THEN 'Moderate Intensity'
+     ELSE 'Light/Rest Day'
+END AS workout_intensity
+FROM analytics_sandbox.daily_metrics;
+
+
+SELECT 
+m.log_date,
+m.workout_completed,
+COALESCE(d.trainer_name,'No Coach/Self-Guided') AS trainer_name
+FROM analytics_sandbox.daily_metrics AS m
+LEFT JOIN workout_details AS d
+ON m.workout_completed = d.workout_name;
+
+
+SELECT 
+log_date,
+step_count,
+CASE WHEN step_count >= 10000 THEN 'Goal Met'
+     ELSE 'Below Target'
+END AS step_status
+FROM analytics_sandbox.daily_metrics;
+
+SELECT
+m.log_date,
+m.workout_completed,
+COALESCE(d.trainer_name, 'Self-Guided') AS trainer_assigned,
+CASE WHEN step_count >= 12000 THEN 'High Activity'
+     WHEN step_count >= 8000 THEN 'Moderate Activity'
+     ELSE 'Rest/Recovery'
+END AS activity_tier 
+FROM analytics_sandbox.daily_metrics AS m
+LEFT JOIN workout_details AS d 
+ON m.workout_completed = d.workout_name;
+
+WITH cleaned_metrics AS (
+    SELECT 
+        m.log_date,
+        m.workout_completed,
+        m.step_count,
+        COALESCE(d.trainer_name, 'Self-Guided') AS trainer_assigned,
+        CASE 
+            WHEN m.step_count >= 12000 THEN 'High Activity'
+            WHEN m.step_count >= 8000  THEN 'Moderate Activity'
+            ELSE 'Rest / Recovery'
+        END AS activity_tier
+    FROM analytics_sandbox.daily_metrics AS m
+    INNER JOIN workout_details AS d
+        ON m.workout_completed = d.workout_name
+),
+
+ranked_tiers AS (
+    SELECT 
+        log_date,
+        workout_completed,
+        step_count,
+        trainer_assigned,
+        activity_tier,
+        ROW_NUMBER() OVER (
+            PARTITION BY activity_tier 
+            ORDER BY step_count DESC
+        ) AS tier_rank
+    FROM cleaned_metrics
+) -- ✅ No comma here before the final SELECT!
+
+SELECT 
+    activity_tier, 
+    tier_rank, 
+    log_date, 
+    workout_completed, 
+    trainer_assigned, 
+    step_count
+FROM ranked_tiers
+WHERE tier_rank = 1;
+
+-- creating the inner query
+SELECT log_date, workout_completed, active_calories_burned
+FROM analytics_sandbox.daily_metrics
+WHERE active_calories_burned > 300;
+
+WITH high_calories_day AS (
+SELECT log_date, workout_completed, active_calories_burned
+FROM analytics_sandbox.daily_metrics
+WHERE active_calories_burned > 300
+)
+SELECT 
+workout_completed,
+COUNT(log_date) AS times_performed
+FROM high_calories_day 
+GROUP BY workout_completed;
+
+WITH heavy_workouts AS (
+SELECT workout_completed, active_calories_burned
+FROM analytics_sandbox.daily_metrics
+)
+SELECT 
+workout_completed,
+active_calories_burned
+FROM heavy_workouts 
+WHERE active_calories_burned < 450;
+
+WITH cleaned_schedule AS (
+SELECT 
+m.log_date,
+m.workout_completed,
+COALESCE(d.trainer_name, 'Self-Guided') AS trainer_name
+FROM analytics_sandbox.daily_metrics AS m
+LEFT JOIN workout_details AS d 
+ON m.workout_completed = d.workout_name
+)
+SELECT 
+m.log_date,
+m.workout_completed,
+trainer_name
+FROM cleaned_schedule 
+WHERE trainer_name = 'Self-Guided';
+
+WITH workout_totals AS (
+SELECT
+workout_completed,
+SUM(active_calories_burned) AS total_calories,
+COUNT(log_date) AS total_sessions
+FROM analytics_sandbox.daily_metrics
+GROUP BY workout_completed
+)
+SELECT 
+workout_completed,
+total_calories
+FROM workout_totals
+WHERE total_calories > 500;
+
+-- CTE #1: filter down to active days only
+WITH active_days AS (
+SELECT 
+log_date,
+workout_completed,
+active_calories_burned
+FROM analytics_sandbox.daily_metrics
+WHERE workout_completed <> 'Rest Day'
+),
+-- CTE #2: calculate calorie tier on those active days, working within the first CTE
+tiered_days AS (
+SELECT
+log_date,
+workout_completed,
+active_calories_burned,
+CASE WHEN active_calories_burned >= 400 THEN 'Burner'
+     ELSE 'Steady'
+END AS calorie_tier
+FROM active_days
+)
+SELECT *
+FROM tiered_days 
+WHERE calorie_tier = 'Burner';
+
+-- practice #1 CTE 
+WITH high_burns AS (
+SELECT
+log_date,
+workout_completed,
+active_calories_burned
+FROM analytics_sandbox.daily_metrics
+WHERE active_calories_burned >= 300
+)
+SELECT 
+log_date,
+workout_completed,
+active_calories_burned
+FROM high_burns;
+
+-- practice #2 CTE
+WITH coach_stats AS (
+    SELECT 
+        d.trainer_name,                           
+        AVG(m.active_calories_burned) AS avg_cals
+    FROM analytics_sandbox.daily_metrics AS m
+    LEFT JOIN workout_details AS d                
+        ON m.workout_completed = d.workout_name
+    GROUP BY d.trainer_name                    
+)
+SELECT
+    trainer_name,
+    avg_cals
+FROM coach_stats
+WHERE avg_cals >= 250;
+
+-- practice #3 CTE
+WITH activity_log AS (
+SELECT 
+log_date,
+step_count,
+workout_completed
+FROM analytics_sandbox.daily_metrics 
+WHERE workout_completed = 'Rest Day'
+),
+goal_logs AS (
+SELECT 
+log_date,
+step_count,
+workout_completed
+FROM activity_log 
+WHERE step_count >= 10000
+)
+SELECT * FROM goal_logs; 
