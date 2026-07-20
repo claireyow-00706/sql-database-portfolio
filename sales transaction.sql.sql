@@ -186,14 +186,14 @@ WITH enriched_sales AS (
         s.transaction_id,
         s.amount,
         COALESCE(p.category, 'General') AS product_group,
-        -- Calculate the net_amount while we are here
+        -- Calculate the net_amount 
         (s.amount - COALESCE(d.discount_value, 0)) AS net_amount
     FROM analytics_sandbox.sales_transactions AS s 
     LEFT JOIN analytics_sandbox.transaction_map AS tm ON s.transaction_id = tm.transaction_id
     LEFT JOIN analytics_sandbox.product_info AS p ON tm.product_id = p.product_id
     LEFT JOIN analytics_sandbox.discount_codes AS d ON s.discount_code = d.discount_code
 )
--- Now we aggregate the clean data from the CTE
+-- aggregate the clean data from the CTE
 SELECT 
     product_group,
     SUM(net_amount) AS total_revenue,
