@@ -186,14 +186,14 @@ WITH enriched_sales AS (
         s.transaction_id,
         s.amount,
         COALESCE(p.category, 'General') AS product_group,
-        -- Calculate the net_amount 
-        (s.amount - COALESCE(d.discount_value, 0)) AS net_amount
+      -- Calculate the net_amount 
+       (s.amount - COALESCE(d.discount_value, 0)) AS net_amount
     FROM analytics_sandbox.sales_transactions AS s 
     LEFT JOIN analytics_sandbox.transaction_map AS tm ON s.transaction_id = tm.transaction_id
     LEFT JOIN analytics_sandbox.product_info AS p ON tm.product_id = p.product_id
     LEFT JOIN analytics_sandbox.discount_codes AS d ON s.discount_code = d.discount_code
 )
--- aggregate the clean data from the CTE
+-- Now we aggregate the clean data from the CTE
 SELECT 
     product_group,
     SUM(net_amount) AS total_revenue,
@@ -201,6 +201,197 @@ SELECT
 FROM enriched_sales
 GROUP BY product_group;
 
+CREATE TABLE customer_particulars (
+customer_name VARCHAR(50) PRIMARY KEY
+);
+
+INSERT INTO customer_particulars VALUES ('Cindy');
+INSERT INTO customer_particulars VALUES ('Malcom');
+INSERT INTO customer_particulars VALUES ('Lincoln');
+INSERT INTO customer_particulars VALUES ('Luke');
+INSERT INTO customer_particulars VALUES ('Dean');
+
+CREATE TABLE analytics_sandbox.transaction_name_map (
+transaction_id INT,
+customer_name VARCHAR(50) 
+);
+
+-- create middleman table to establish a connection between transaction id and customer name so that left join is applicable
+INSERT INTO analytics_sandbox.transaction_name_map (transaction_id, customer_name) VALUES
+(101,'Cindy'),
+(102,'Malcom'),
+(103,'Lincoln'),
+(104,'Luke'),
+(105,'Dean');
+
+
+-- creating inner query to shrink the parameters in which data is extracted (filtered out) 
+WITH customer_sales AS ( -- naming the inner query for easy reference later on
+SELECT 
+s.transaction_id,
+s.amount,
+tnm.customer_name
+FROM analytics_sandbox.sales_transactions AS s
+LEFT JOIN analytics_sandbox.transaction_name_map AS tnm -- matching the transaction id from sale table to transaction_name_map so that it matches
+ON s.transaction_id = tnm.transaction_id
+LEFT JOIN customer_particulars AS c -- linking the customer name from customer table to the transaction_name_map table so that both match
+ON tnm.customer_name = c.customer_name
+)
+SELECT  -- selecting from the customer_sales table made above (extraction of data from a smaller scale)
+customer_name,
+SUM(amount) AS total_spent,
+COUNT(transaction_id) AS transaction_count
+FROM customer_sales 
+GROUP BY customer_name;
+
+
+
+
+WITH customer_sales AS ( -- naming the inner query for easy reference later on
+SELECT 
+s.transaction_id,
+s.amount,
+tnm.customer_name
+FROM analytics_sandbox.sales_transactions AS s
+LEFT JOIN analytics_sandbox.transaction_name_map AS tnm -- matching the transaction id from sale table to transaction_name_map so that it matches
+ON s.transaction_id = tnm.transaction_id
+LEFT JOIN customer_particulars AS c -- linking the customer name from customer table to the transaction_name_map table so that both match
+ON tnm.customer_name = c.customer_name
+)
+SELECT 
+   customer_name,
+   SUM(amount) AS total_spent,
+   COUNT(transaction_id) AS transaction_count
+FROM customer_sales
+GROUP BY customer_name --  1) group the total spend according to customer name 
+HAVING SUM(amount) > 100; --  2) from the total spent by each customer, filter out only those who spend more than 100
+
+
+WITH customer_sales AS ( -- naming the inner query for easy reference later on
+SELECT 
+s.transaction_id,
+s.amount,
+tnm.customer_name
+FROM analytics_sandbox.sales_transactions AS s
+LEFT JOIN analytics_sandbox.transaction_name_map AS tnm -- matching the transaction id from sale table to transaction_name_map so that it matches
+ON s.transaction_id = tnm.transaction_id
+LEFT JOIN customer_particulars AS c -- linking the customer name from customer table to the transaction_name_map table so that both match
+ON tnm.customer_name = c.customer_name
+)
+SELECT 
+customer_name,
+SUM(amount) AS total_spent,
+CASE WHEN SUM(amount) > 100 THEN 'VIP'
+     ELSE 'Standard'
+END AS segment
+FROM customer_sales
+GROUP BY customer_name;
+
+
+
+
+WITH customer_sales AS ( -- naming the inner query for easy reference later on
+SELECT 
+s.transaction_id,
+s.amount,
+tnm.customer_name
+FROM analytics_sandbox.sales_transactions AS s
+LEFT JOIN analytics_sandbox.transaction_name_map AS tnm -- matching the transaction id from sale table to transaction_name_map so that it matches
+ON s.transaction_id = tnm.transaction_id
+LEFT JOIN customer_particulars AS c -- linking the customer name from customer table to the transaction_name_map table so that both match
+ON tnm.customer_name = c.customer_name
+)
+SELECT 
+customer_name,
+ROUND(SUM(amount),2) AS total_spent, -- rounds the sum of the amount to 2dp
+COUNT(transaction_id) AS transaction_count, 
+CASE WHEN SUM(amount) > 100 THEN 'VIP'
+     ELSE 'Standard'
+END AS segment
+FROM customer_sales
+GROUP BY customer_name 
+ORDER BY total_spent DESC;
+     
+
+SELECT
+s.transaction_id,
+s.amount
+FROM analytics_sandbox.sales_transactions AS s 
+LEFT JOIN analytics_sandbox.product_info AS p
+ON p.product_id = s.transaction_id
+WHERE p.product_id IS NULL -- filters out NUll data
+
+-- time series analysis; transforming a "sale_date" column to "month" or "year" to group data correctly
+
+ALTER TABLE analytics_sandbox.sales_transactions -- this is needed because the original table didnt have a sales_date column
+ADD COLUMN sales_date DATE;
+UPDATE analytics_sandbox.sales_transactions
+SET sales_date = CASE transaction_id
+    WHEN 101 THEN '2026-01-15'
+    WHEN 102 THEN '2026-02-15'
+    WHEN 103 THEN '2026-03-15'
+    WHEN 104 THEN '2026-04-15'
+END 
+WHERE transaction_id IN (101,102,103,104); -- tells database engine to only look at these 4 specific rows and nothing else
+
+
+SELECT 
+EXTRACT(MONTH FROM sales_date) AS sale_month, -- looks at the sales_date column and pulls out only the month and label that column a sale_month
+SUM(amount) AS monthly_revenue
+FROM sales_transactions
+WHERE EXTRACT(YEAR FROM sales_date) = 2026 -- only sees data from 2026
+GROUP BY 1 -- '1' refers to the first line of code positioned under SELECT, it is a shorthand for GROUP BY sales_month 
+ORDER BY 1; -- shorthand for order by sales month, '1' refers to the first line of code under SELECT ie sales_month
+
+SELECT 
+EXTRACT(MONTH FROM sales_date) AS sale_month,
+SUM(amount) AS monthly_revenue
+FROM sales_transactions
+WHERE EXTRACT(YEAR FROM sales_date) = 2026
+GROUP BY 1 -- group by sales_month ie group each data entry in the same month together, if there were 50 entries then all of that will be grouped into one
+HAVING SUM(amount) > 200 -- filters out months with low revenue
+ORDER BY 1; -- order by sales month ie 1,2,3...
+
+
+CREATE TABLE customer_orders (
+customer_id INT PRIMARY KEY,
+number_of_orders INT,
+amount_spent float
+);
+
+INSERT INTO customer_orders (customer_id, number_of_orders, amount_spent) VALUES
+(1,3,12.33),
+(2,5,13.45),
+(3,7,14.31),
+(4,9,16.53);
+
+
+WITH customer_stats AS (
+    -- 1. First, aggregate the data to get the counts and totals per customer
+    SELECT 
+        customer_id,
+        COUNT(*) AS total_orders,
+        SUM(amount_spent) AS total_revenue
+    FROM customer_orders
+    GROUP BY customer_id
+    ORDER BY total_orders DESC
+)
+-- 2. Then, classify and filter the results
+SELECT 
+    customer_id,
+    total_revenue,
+    CASE 
+        WHEN total_orders > 5 THEN 'VIP'
+        ELSE 'Normal'
+    END AS customer_class
+FROM customer_stats;
+
+
+-- core SQL aggregation functions
+-- SUM() adds up numerical column 
+-- COUNT() counts how many rows exits 
+-- AVG() calculate average value 
+-- MIN() or MAX() finds the smallest or largest value 
 
 
 
