@@ -170,6 +170,18 @@ FROM master_loan_details
 GROUP BY student_name, source; -- tells SQL to count for EACH student and the source, bec grouping creates seperate piles and it counts each pile
 
 
+WITH master_loan_details AS (
+SELECT student_name, book_id,loan_date, 'Current' AS source FROM loans
+UNION ALL 
+SELECT student_name, book_id, loan_date, 'Historical' AS source from old_loans
+)
+SELECT 
+student_name,
+COUNT(*) AS total_loans
+FROM master_loan_details
+GROUP BY student_name, source -- gives 2 rows per student. one for current one for historical
+HAVING COUNT(*) > 1;
+
 
 
 
