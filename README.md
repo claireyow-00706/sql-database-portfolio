@@ -1,5 +1,8 @@
 # sql-database-portfolio
-A collection of SQL scripts focusing on relational database design, data manipulation queries, and table architectures.
+A collection of SQL scripts focusing on relational database design, data manipulation queries, and table architectures. 
+
+!!!!Disclaimer: Some are created whilst following YouTube tutorials from professional data analysts!!!!
+
 # SQL Database Architecture & Querying Portfolio
 
 Welcome to my SQL data portfolio. This repository showcases my foundational work in Structured Query Language (SQL). I am currently focused on building my proficiency in relational database design and basic query execution using DBeaver. 
