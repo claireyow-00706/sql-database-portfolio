@@ -1,7 +1,7 @@
 # sql-database-portfolio
 A collection of SQL scripts focusing on relational database design, data manipulation queries, and table architectures. 
 
-!!!!Disclaimer: Some are created whilst following YouTube tutorials from professional data analysts!!!!
+‼️‼️Disclaimer: Some scripts were created whilst following YouTube tutorials from professional data analysts. 
 
 # SQL Database Architecture & Querying Portfolio
 
