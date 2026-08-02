@@ -391,6 +391,113 @@ WHERE salary  > 70000
 ;
 
 
+SELECT
+first_name,
+last_name,
+age,
+CASE WHEN age <= 30 THEN 'Young'
+     WHEN age BETWEEN 31 and 50 THEN 'Old'
+END AS age_category
+FROM employee_demographics;
+
+
+-- pay increase and bonus
+-- < 50000 = 5% raise
+-- > 50000 = 7% raise
+-- finance = 10% bonus
+SELECT 
+first_name,
+last_name,
+salary,
+CASE WHEN salary <= 50000 THEN salary + (salary * 0.05)-- salary with the 5% raise
+     WHEN salary > 50000 THEN salary + (salary * 0.07)
+END AS salary_details
+FROM employee_salary;
+
+
+-- attempted CTE 
+WITH salary_rank AS (
+SELECT 
+first_name,
+last_name,
+salary,
+CASE WHEN salary <= 50000 THEN salary + (salary * 0.05)-- salary with the 5% raise
+     WHEN salary > 50000 THEN salary + (salary * 0.07)
+END AS salary_details
+FROM employee_salary
+)
+SELECT
+first_name,
+last_name,
+salary,
+salary_details,
+RANK() OVER(ORDER BY salary_details DESC) AS new_salary_rank
+FROM salary_rank;
+
+-- Window Functions
+SELECT 
+gender,
+AVG(salary) AS avg_salary
+FROM employee_demographics AS dem
+JOIN employee_salary AS sal
+ON dem.employee_id = sal.employee_id 
+GROUP BY gender; 
+
+
+SELECT 
+gender,
+AVG(salary) OVER(PARTITION BY gender)
+FROM employee_demographics AS dem
+JOIN employee_salary AS sal
+ON dem.employee_id = sal.employee_id;
+
+SELECT
+dem.first_name,
+dem.last_name,
+gender,
+salary,
+SUM(salary) OVER(PARTITION BY gender ORDER BY dem.employee_id) AS Rolling_Total
+FROM employee_demographics AS dem
+JOIN employee_salary AS sal
+ON dem.employee_id = sal.employee_id;
+
+SELECT 
+dem.first_name,
+dem.last_name,
+gender,
+salary,
+ROW_NUMBER ()OVER()
+FROM employee_demographics AS dem
+JOIN employee_salary AS sal
+ON dem.employee_id = sal.employee_id; 
+
+
+
+SELECT 
+dem.first_name,
+dem.last_name,
+gender,
+salary,
+ROW_NUMBER ()OVER(PARTITION BY gender
+ORDER BY salary DESC) -- row number is shown per gender ie it analyses by each gender and the rank is given within each gender
+FROM employee_demographics AS dem
+JOIN employee_salary AS sal
+ON dem.employee_id = sal.employee_id; 
+
+
+
+SELECT 
+dem.first_name,
+dem.last_name,
+gender,
+salary,
+DENSE_RANK() OVER(PARTITION BY gender ORDER BY salary DESC) rank_number -- analyses within each bucket, ie how i have partitioned the data
+FROM employee_demographics AS dem
+JOIN employee_salary AS sal
+ON dem.employee_id = sal.employee_id; 
+
+
+
 
 
 
